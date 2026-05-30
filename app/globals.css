@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #12121a;
+  --surface2: #1a1a26;
+  --accent: #7c3aed;
+  --accent2: #06d6a0;
+  --accent3: #f72585;
+  --text: #e8e8f0;
+  --muted: #6b6b85;
+  --border: rgba(124, 58, 237, 0.2);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.mono { font-family: 'Space Mono', monospace; }
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes scan-line {
+  0% { top: 0%; }
+  100% { top: 100%; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(124, 58, 237, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(124, 58, 237, 0.6), 0 0 80px rgba(124, 58, 237, 0.2); }
+}
+
+@keyframes border-spin {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.scanning::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+  animation: scan-line 2s linear infinite;
+  pointer-events: none;
+}
+
+.answer-card {
+  animation: fade-in-up 0.4s ease-out;
+}
+
+.camera-active {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+.corner-tl, .corner-tr, .corner-bl, .corner-br {
+  position: absolute;
+  width: 20px; height: 20px;
+  border-color: var(--accent2);
+  border-style: solid;
+}
+.corner-tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+.corner-tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+.corner-bl { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+.corner-br { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
