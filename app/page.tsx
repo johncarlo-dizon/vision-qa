@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
+import { CodeBlock } from "./components/CodeBlock";
 
 interface AnalysisResult {
   hasQuestion: boolean;
@@ -8,28 +9,118 @@ interface AnalysisResult {
   answer: string;
 }
 
-// Renders answer text with proper code block support
+// Syntax highlight tokens per language
+function highlightCode(code: string, lang: string): React.ReactNode[] {
+  const lines = code.split("\n");
+
+  const pythonKeywords = /\b(def|return|if|else|elif|for|while|in|not|and|or|import|from|class|try|except|with|as|pass|break|continue|True|False|None|lambda|yield|raise|del|global|nonlocal|assert|is)\b/g;
+  const jsKeywords = /\b(const|let|var|function|return|if|else|for|while|in|of|import|export|from|class|try|catch|finally|new|this|typeof|instanceof|true|false|null|undefined|async|await|=>)\b/g;
+  const strings = /(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g;
+  const numbers = /\b(\d+\.?\d*)\b/g;
+  const comments = /(#.*$|\/\/.*$)/gm;
+  const builtins = /\b(print|input|len|range|int|str|float|list|dict|set|bool|type|sum|min|max|map|filter|enumerate|zip|open|console|document|window|Math|JSON|Array|Object|String|Number|Boolean|Promise)\b/g;
+
+  return lines.map((line, i) => {
+    // Tokenize line into colored spans
+    type Token = { text: string; color: string };
+    const tokens: Token[] = [];
+    let remaining = line;
+
+    // Check for comment first (whole line)
+    const commentMatch = remaining.match(/^(\s*)(#.*|\/\/.*)$/);
+    if (commentMatch) {
+      return (
+        <div key={i} style={{ minHeight: "1.6em" }}>
+          {commentMatch[1] && <span>{commentMatch[1]}</span>}
+          <span style={{ color: "#6b6b85", fontStyle: "italic" }}>{commentMatch[2]}</span>
+        </div>
+      );
+    }
+
+    // Simple token approach: split into segments
+    const kwRegex = ["python", "py"].includes(lang) ? pythonKeywords : jsKeywords;
+    const segments: { text: string; type: string }[] = [];
+    let pos = 0;
+    const fullLine = line;
+
+    // Find all matches of strings, numbers, keywords, builtins
+    const allMatches: { start: number; end: number; text: string; type: string }[] = [];
+
+    // Strings
+    let m: RegExpExecArray | null;
+    const strRe = /(["'`])((?:\\.|(?!\1)[^\\])*?)\1/g;
+    while ((m = strRe.exec(fullLine)) !== null) {
+      allMatches.push({ start: m.index, end: m.index + m[0].length, text: m[0], type: "string" });
+    }
+
+    // Sort by start position, remove overlaps
+    allMatches.sort((a, b) => a.start - b.start);
+    const noOverlap: typeof allMatches = [];
+    let lastEnd = 0;
+    for (const match of allMatches) {
+      if (match.start >= lastEnd) {
+        noOverlap.push(match);
+        lastEnd = match.end;
+      }
+    }
+
+    // Build final segments
+    pos = 0;
+    for (const match of noOverlap) {
+      if (pos < match.start) {
+        segments.push({ text: fullLine.slice(pos, match.start), type: "code" });
+      }
+      segments.push({ text: match.text, type: match.type });
+      pos = match.end;
+    }
+    if (pos < fullLine.length) {
+      segments.push({ text: fullLine.slice(pos), type: "code" });
+    }
+
+    return (
+      <div key={i} style={{ minHeight: "1.6em" }}>
+        {segments.map((seg, j) => {
+          if (seg.type === "string") {
+            return <span key={j} style={{ color: "#f59e0b" }}>{seg.text}</span>;
+          }
+          // Within code segments, highlight keywords and builtins
+          const parts = seg.text.split(kwRegex);
+          const bParts: React.ReactNode[] = [];
+          parts.forEach((p, k) => {
+            const kws = ["python","py"].includes(lang)
+              ? ["def","return","if","else","elif","for","while","in","not","and","or","import","from","class","try","except","with","as","pass","break","continue","True","False","None","lambda","yield","raise","del","global","nonlocal","assert","is"]
+              : ["const","let","var","function","return","if","else","for","while","in","of","import","export","from","class","try","catch","finally","new","this","typeof","instanceof","true","false","null","undefined","async","await"];
+            const builtinList = ["print","input","len","range","int","str","float","list","dict","set","bool","type","sum","min","max","map","filter","enumerate","zip","open","console","document","window","Math","JSON","Array","Object","String","Number","Boolean","Promise"];
+            if (kws.includes(p)) {
+              bParts.push(<span key={k} style={{ color: "#c084fc" }}>{p}</span>);
+            } else if (builtinList.includes(p)) {
+              bParts.push(<span key={k} style={{ color: "#38bdf8" }}>{p}</span>);
+            } else {
+              // Numbers
+              const numSplit = p.split(/(\b\d+\.?\d*\b)/g);
+              numSplit.forEach((n, l) => {
+                if (/^\d+\.?\d*$/.test(n)) {
+                  bParts.push(<span key={k+"-"+l} style={{ color: "#fb923c" }}>{n}</span>);
+                } else {
+                  bParts.push(<span key={k+"-"+l}>{n}</span>);
+                }
+              });
+            }
+          });
+          return <span key={j}>{bParts}</span>;
+        })}
+      </div>
+    );
+  });
+}
+
+// Renders answer text with proper code block and inline formatting
 function renderAnswer(text: string) {
   const parts = text.split(/(```[\w]*\n[\s\S]*?```)/g);
   return parts.map((part, i) => {
     const codeMatch = part.match(/^```([\w]*)\n([\s\S]*?)```$/);
     if (codeMatch) {
-      const lang = codeMatch[1] || "code";
-      const code = codeMatch[2];
-      return (
-        <div key={i} style={{ margin: "10px 0", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(124,58,237,0.3)" }}>
-          <div style={{ background: "rgba(124,58,237,0.2)", padding: "4px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 10, color: "#7c3aed", fontFamily: "monospace", letterSpacing: 1, textTransform: "uppercase" as const }}>{lang}</span>
-            <button
-              onClick={() => navigator.clipboard?.writeText(code)}
-              style={{ background: "none", border: "none", color: "#6b6b85", fontSize: 10, cursor: "pointer", fontFamily: "monospace" }}
-            >COPY</button>
-          </div>
-          <pre style={{ margin: 0, padding: "12px", background: "#0a0a0f", overflowX: "auto" as const, fontSize: 12, lineHeight: 1.6, color: "#06d6a0", fontFamily: "monospace", whiteSpace: "pre" as const }}>
-            {code}
-          </pre>
-        </div>
-      );
+      return <CodeBlock key={i} language={codeMatch[1] || "python"} code={codeMatch[2]} />;
     }
     const inlineParts = part.split(/(`[^`]+`)/g);
     return (
