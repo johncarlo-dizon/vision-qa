@@ -8,6 +8,53 @@ interface AnalysisResult {
   answer: string;
 }
 
+// Renders answer text with proper code block support
+function renderAnswer(text: string) {
+  const parts = text.split(/(```[\w]*\n[\s\S]*?```)/g);
+  return parts.map((part, i) => {
+    const codeMatch = part.match(/^```([\w]*)\n([\s\S]*?)```$/);
+    if (codeMatch) {
+      const lang = codeMatch[1] || "code";
+      const code = codeMatch[2];
+      return (
+        <div key={i} style={{ margin: "10px 0", borderRadius: 10, overflow: "hidden", border: "1px solid rgba(124,58,237,0.3)" }}>
+          <div style={{ background: "rgba(124,58,237,0.2)", padding: "4px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: "#7c3aed", fontFamily: "monospace", letterSpacing: 1, textTransform: "uppercase" as const }}>{lang}</span>
+            <button
+              onClick={() => navigator.clipboard?.writeText(code)}
+              style={{ background: "none", border: "none", color: "#6b6b85", fontSize: 10, cursor: "pointer", fontFamily: "monospace" }}
+            >COPY</button>
+          </div>
+          <pre style={{ margin: 0, padding: "12px", background: "#0a0a0f", overflowX: "auto" as const, fontSize: 12, lineHeight: 1.6, color: "#06d6a0", fontFamily: "monospace", whiteSpace: "pre" as const }}>
+            {code}
+          </pre>
+        </div>
+      );
+    }
+    const inlineParts = part.split(/(`[^`]+`)/g);
+    return (
+      <span key={i}>
+        {inlineParts.map((p, j) => {
+          if (p.startsWith("`") && p.endsWith("`")) {
+            return <code key={j} style={{ background: "rgba(124,58,237,0.2)", color: "#06d6a0", padding: "1px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>{p.slice(1, -1)}</code>;
+          }
+          const boldParts = p.split(/(\*\*[^*]+\*\*)/g);
+          return (
+            <span key={j}>
+              {boldParts.map((b, k) => {
+                if (b.startsWith("**") && b.endsWith("**")) {
+                  return <strong key={k} style={{ color: "#e8e8f0" }}>{b.slice(2, -2)}</strong>;
+                }
+                return <span key={k}>{b}</span>;
+              })}
+            </span>
+          );
+        })}
+      </span>
+    );
+  });
+}
+
 type ScanStatus = "idle" | "scanning" | "detected" | "cooldown" | "error";
 
 const MOTION_THRESHOLD = 30; // pixel diff threshold (0-255)
@@ -308,7 +355,7 @@ export default function Home() {
                 <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ width: 20, height: 20, borderRadius: 5, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0 }}>✦</div>
-                  <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "#e8e8f0" }}>{result.answer}</p>
+                  <div style={{ margin: 0, fontSize: 13, lineHeight: 1.8, color: "#e8e8f0" }}>{renderAnswer(result.answer)}</div>
                 </div>
               </div>
             ) : (
@@ -440,7 +487,7 @@ export default function Home() {
             <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
             <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
               <div style={{ width: 24, height: 24, borderRadius: 6, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, marginTop: 2 }}>✦</div>
-              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#e8e8f0" }}>{result.answer}</p>
+              <div style={{ margin: 0, fontSize: 14, lineHeight: 1.8, color: "#e8e8f0" }}>{renderAnswer(result.answer)}</div>
             </div>
           </div>
         )}

@@ -31,7 +31,11 @@ export async function POST(request: NextRequest) {
 Look at this image carefully.
 
 1. First, determine if there is a visible question in the image (text on screen, written on paper, whiteboard, etc.)
-2. If YES: answer the question clearly and concisely. Format your response as JSON: {"hasQuestion": true, "question": "<the detected question>", "answer": "<your answer>"}
+2. If YES: answer the question clearly and concisely.
+   - If the answer involves CODE, wrap it in a markdown code block with the language: \`\`\`python\n...code...\n\`\`\`
+   - If multiple code snippets, use separate code blocks
+   - Use **bold** for key terms
+   - Format your response as JSON: {"hasQuestion": true, "question": "<the detected question>", "answer": "<your formatted answer>"}
 3. If NO question is detected: respond with JSON: {"hasQuestion": false, "question": "", "answer": ""}
 
 Respond ONLY with valid JSON, no extra text.`,
