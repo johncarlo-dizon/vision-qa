@@ -210,8 +210,17 @@ export default function Home() {
             </div>
           </div>
         )}
- 
       </div>
+
+      {/* Footer */}
+      <footer style={{ borderTop: "1px solid rgba(124,58,237,0.15)", padding: "12px 16px", textAlign: "center", background: "#12121a" }}>
+        <p style={{ margin: 0, fontSize: 11, color: "#6b6b85", fontFamily: "monospace", letterSpacing: 1 }}>
+          DEVELOPED BY{" "}
+          <span style={{ color: "#7c3aed", fontWeight: 700, background: "linear-gradient(90deg, #7c3aed, #f72585)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            JOHN CARLO V. DIZON
+          </span>
+        </p>
+      </footer>
 
       <style>{`
         @keyframes fade-in-up {
