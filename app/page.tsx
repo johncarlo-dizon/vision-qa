@@ -116,28 +116,41 @@ function highlightCode(code: string, lang: string): React.ReactNode[] {
 
 // Renders answer text with proper code block and inline formatting
 function renderAnswer(text: string) {
-  const parts = text.split(/(```[\w]*\n[\s\S]*?```)/g);
+  // Normalize escaped newlines from JSON
+  const normalized = text.replace(/\\n/g, "\n");
+
+  const parts = normalized.split(/(```[\w]*\n[\s\S]*?```)/g);
   return parts.map((part, i) => {
     const codeMatch = part.match(/^```([\w]*)\n([\s\S]*?)```$/);
     if (codeMatch) {
       return <CodeBlock key={i} language={codeMatch[1] || "python"} code={codeMatch[2]} />;
     }
-    const inlineParts = part.split(/(`[^`]+`)/g);
+
+    // Render normal text with inline code and bold
+    const lines = part.split("\n");
     return (
       <span key={i}>
-        {inlineParts.map((p, j) => {
-          if (p.startsWith("`") && p.endsWith("`")) {
-            return <code key={j} style={{ background: "rgba(124,58,237,0.2)", color: "#06d6a0", padding: "1px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>{p.slice(1, -1)}</code>;
-          }
-          const boldParts = p.split(/(\*\*[^*]+\*\*)/g);
+        {lines.map((line, li) => {
+          const inlineParts = line.split(/(`[^`]+`)/g);
           return (
-            <span key={j}>
-              {boldParts.map((b, k) => {
-                if (b.startsWith("**") && b.endsWith("**")) {
-                  return <strong key={k} style={{ color: "#e8e8f0" }}>{b.slice(2, -2)}</strong>;
+            <span key={li}>
+              {inlineParts.map((p, j) => {
+                if (p.startsWith("`") && p.endsWith("`")) {
+                  return <code key={j} style={{ background: "rgba(124,58,237,0.2)", color: "#06d6a0", padding: "1px 6px", borderRadius: 4, fontFamily: "monospace", fontSize: 12 }}>{p.slice(1, -1)}</code>;
                 }
-                return <span key={k}>{b}</span>;
+                const boldParts = p.split(/(\*\*[^*]+\*\*)/g);
+                return (
+                  <span key={j}>
+                    {boldParts.map((b, k) => {
+                      if (b.startsWith("**") && b.endsWith("**")) {
+                        return <strong key={k} style={{ color: "#e8e8f0" }}>{b.slice(2, -2)}</strong>;
+                      }
+                      return <span key={k}>{b}</span>;
+                    })}
+                  </span>
+                );
               })}
+              {li < lines.length - 1 && <br />}
             </span>
           );
         })}

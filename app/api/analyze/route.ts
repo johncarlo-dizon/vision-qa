@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const response = await client.chat.completions.create({
       model: "meta-llama/llama-4-scout-17b-16e-instruct",
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         {
           role: "user",
@@ -30,15 +30,25 @@ export async function POST(request: NextRequest) {
 
 Look at this image carefully.
 
-1. First, determine if there is a visible question in the image (text on screen, written on paper, whiteboard, etc.)
-2. If YES: answer the question clearly and concisely.
-   - If the answer involves CODE, wrap it in a markdown code block with the language: \`\`\`python\n...code...\n\`\`\`
-   - If multiple code snippets, use separate code blocks
-   - Use **bold** for key terms
-   - Format your response as JSON: {"hasQuestion": true, "question": "<the detected question>", "answer": "<your formatted answer>"}
-3. If NO question is detected: respond with JSON: {"hasQuestion": false, "question": "", "answer": ""}
+STEP 1: Determine if there is a visible question in the image (text on screen, paper, whiteboard, etc.)
 
-Respond ONLY with valid JSON, no extra text.`,
+STEP 2: If YES, answer it. Follow these STRICT formatting rules for the "answer" field:
+- Always write explanations as normal text
+- For ANY code, ALWAYS wrap it in a markdown code block like this:
+  \`\`\`python
+  def hello():
+      print("Hello")
+  \`\`\`
+- Use the correct language tag: python, javascript, java, cpp, etc.
+- NEVER write code inline as plain text
+- You may have multiple code blocks if needed
+- Use **bold** for important terms
+
+STEP 3: Return ONLY this JSON (no extra text before or after):
+{"hasQuestion": true, "question": "<detected question text>", "answer": "<formatted answer with proper markdown code blocks>"}
+
+If NO question detected:
+{"hasQuestion": false, "question": "", "answer": ""}`,
             },
           ],
         },
@@ -48,23 +58,23 @@ Respond ONLY with valid JSON, no extra text.`,
     const text = response.choices[0]?.message?.content ?? "";
 
     try {
-      const clean = text.replace(/```json|```/g, "").trim();
+      // Clean up common JSON issues
+      const clean = text
+        .replace(/^[^{]*/, "") // remove anything before first {
+        .replace(/[^}]*$/, "") // remove anything after last }
+        .trim();
+
       const parsed = JSON.parse(clean);
       return NextResponse.json(parsed);
     } catch {
-      // If Groq didn't return valid JSON, treat it as no question found
       return NextResponse.json({ hasQuestion: false, question: "", answer: "" });
     }
   } catch (error: unknown) {
     console.error("Groq API error:", error);
-
-    // Don't show error to user for normal "no question" cases
     const message = error instanceof Error ? error.message : "";
     if (message.includes("Could not resolve") || message.includes("authentication")) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
-
-    // For all other errors, silently return no question found
     return NextResponse.json({ hasQuestion: false, question: "", answer: "" });
   }
 }
