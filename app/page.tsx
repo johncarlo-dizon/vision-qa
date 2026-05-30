@@ -210,17 +210,7 @@ export default function Home() {
             </div>
           </div>
         )}
-
-        {/* Setup Guide */}
-        <div style={{ background: "#12121a", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 12, padding: 14, marginTop: 4 }}>
-          <p style={{ margin: "0 0 8px", fontSize: 11, color: "#7c3aed", letterSpacing: 1, fontFamily: "monospace" }}>NGROK SETUP</p>
-          <div style={{ fontSize: 12, color: "#6b6b85", lineHeight: 1.7 }}>
-            <div>1. Add <code style={{ color: "#06d6a0" }}>ANTHROPIC_API_KEY</code> to <code style={{ color: "#06d6a0" }}>.env.local</code></div>
-            <div>2. Run <code style={{ color: "#06d6a0" }}>npm run dev</code></div>
-            <div>3. Run <code style={{ color: "#06d6a0" }}>ngrok http 3000</code></div>
-            <div>4. Open the ngrok URL on your phone 📱</div>
-          </div>
-        </div>
+ 
       </div>
 
       <style>{`
