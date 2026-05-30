@@ -48,13 +48,19 @@ Respond ONLY with valid JSON, no extra text.`,
       const parsed = JSON.parse(clean);
       return NextResponse.json(parsed);
     } catch {
+      // If Groq didn't return valid JSON, treat it as no question found
       return NextResponse.json({ hasQuestion: false, question: "", answer: "" });
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Groq API error:", error);
-    return NextResponse.json(
-      { error: "Failed to analyze image" },
-      { status: 500 }
-    );
+
+    // Don't show error to user for normal "no question" cases
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Could not resolve") || message.includes("authentication")) {
+      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+    }
+
+    // For all other errors, silently return no question found
+    return NextResponse.json({ hasQuestion: false, question: "", answer: "" });
   }
 }

@@ -72,8 +72,14 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: imageData }),
       });
-      if (!res.ok) throw new Error("API error");
-      const data: AnalysisResult = await res.json();
+      const data = await res.json();
+
+      if (res.status === 401) {
+        setStatus("error");
+        setError("Invalid API key. Check your GROQ_API_KEY.");
+        return;
+      }
+
       if (data.hasQuestion) {
         setStatus("detected");
         setResult(data);
@@ -86,8 +92,8 @@ export default function Home() {
         setStatus("scanning");
       }
     } catch {
-      setStatus("error");
-      setError("Failed to analyze frame. Check your API key.");
+      // Network error — keep scanning silently
+      setStatus("scanning");
     }
   }, []);
 
