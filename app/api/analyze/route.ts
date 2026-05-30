@@ -1,11 +1,11 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 export async function POST(request: NextRequest) {
+  const client = new Groq({
+    apiKey: process.env.GROQ_API_KEY,
+  });
+
   try {
     const { image } = await request.json();
 
@@ -13,23 +13,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    // Strip data URL prefix to get raw base64
-    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
-
-    const response = await client.messages.create({
-      model: "claude-opus-4-6",
+    const response = await client.chat.completions.create({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
       max_tokens: 1024,
       messages: [
         {
           role: "user",
           content: [
             {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: "image/jpeg",
-                data: base64Data,
-              },
+              type: "image_url",
+              image_url: { url: image },
             },
             {
               type: "text",
@@ -48,17 +41,17 @@ Respond ONLY with valid JSON, no extra text.`,
       ],
     });
 
-    const text =
-      response.content[0].type === "text" ? response.content[0].text : "";
+    const text = response.choices[0]?.message?.content ?? "";
 
     try {
-      const parsed = JSON.parse(text);
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
       return NextResponse.json(parsed);
     } catch {
       return NextResponse.json({ hasQuestion: false, question: "", answer: "" });
     }
   } catch (error) {
-    console.error("Anthropic API error:", error);
+    console.error("Groq API error:", error);
     return NextResponse.json(
       { error: "Failed to analyze image" },
       { status: 500 }
