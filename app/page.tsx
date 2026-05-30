@@ -459,7 +459,7 @@ export default function Home() {
                 <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
                 <div style={{ display: "flex", gap: 8 }}>
                   <div style={{ width: 20, height: 20, borderRadius: 5, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0 }}>✦</div>
-                  <div style={{ margin: 0, fontSize: 13, lineHeight: 1.8, color: "#e8e8f0" }}>{renderAnswer(result.answer)}</div>
+                  <div style={{ margin: 0, fontSize: 13, lineHeight: 1.8, color: "#e8e8f0", minWidth: 0, overflow: "hidden" }}>{renderAnswer(result.answer)}</div>
                 </div>
               </div>
             ) : (
@@ -589,9 +589,9 @@ export default function Home() {
             </div>
             <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6b6b85", fontStyle: "italic", lineHeight: 1.5 }}>&ldquo;{result.question}&rdquo;</p>
             <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0, overflow: "hidden" }}>
               <div style={{ width: 24, height: 24, borderRadius: 6, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, marginTop: 2 }}>✦</div>
-              <div style={{ margin: 0, fontSize: 14, lineHeight: 1.8, color: "#e8e8f0" }}>{renderAnswer(result.answer)}</div>
+              <div style={{ margin: 0, fontSize: 14, lineHeight: 1.8, color: "#e8e8f0", minWidth: 0, overflow: "hidden" }}>{renderAnswer(result.answer)}</div>
             </div>
           </div>
         )}
