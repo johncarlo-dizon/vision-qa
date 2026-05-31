@@ -185,6 +185,73 @@ const MOTION_THRESHOLD = 30; // pixel diff threshold (0-255)
 const MOTION_PERCENT = 0.04; // 4% of pixels must change
 const COOLDOWN_SECONDS = 15;
 
+const LANG_OPTIONS = [
+  { value: "auto",       label: "🤖 Auto",       color: "#6b6b85" },
+  { value: "python",     label: "🐍 Python",      color: "#4b9cd3" },
+  { value: "javascript", label: "⚡ JavaScript",  color: "#f0db4f" },
+  { value: "typescript", label: "🔷 TypeScript",  color: "#3178c6" },
+  { value: "java",       label: "☕ Java",         color: "#ea580c" },
+  { value: "cpp",        label: "⚙️ C++",          color: "#00599c" },
+  { value: "c",          label: "🔧 C",            color: "#aaaaaa" },
+  { value: "csharp",     label: "🟣 C#",           color: "#68217a" },
+  { value: "php",        label: "🐘 PHP",          color: "#777bb4" },
+  { value: "go",         label: "🐹 Go",           color: "#00add8" },
+  { value: "rust",       label: "🦀 Rust",         color: "#dea584" },
+  { value: "swift",      label: "🍎 Swift",        color: "#f05138" },
+  { value: "kotlin",     label: "🎯 Kotlin",       color: "#7f52ff" },
+  { value: "sql",        label: "🗄️ SQL",          color: "#009688" },
+  { value: "bash",       label: "💻 Bash",         color: "#aaaaaa" },
+];
+
+function LangSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = LANG_OPTIONS.find(l => l.value === value) ?? LANG_OPTIONS[0];
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          background: "#12121a", border: `1px solid ${value === "auto" ? "rgba(124,58,237,0.3)" : selected.color + "60"}`,
+          borderRadius: 10, padding: "6px 12px", cursor: "pointer",
+          color: value === "auto" ? "#6b6b85" : selected.color,
+          fontSize: 12, fontFamily: "monospace", fontWeight: 700,
+          boxShadow: value !== "auto" ? `0 0 8px ${selected.color}30` : "none",
+        }}
+      >
+        {selected.label}
+        <span style={{ fontSize: 9, opacity: 0.6 }}>▼</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute", bottom: "110%", left: 0, zIndex: 200,
+          background: "#12121a", border: "1px solid rgba(124,58,237,0.3)",
+          borderRadius: 12, padding: 6, minWidth: 170,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.6)", maxHeight: 280, overflowY: "auto",
+        }}>
+          {LANG_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              style={{
+                display: "block", width: "100%", textAlign: "left",
+                background: value === opt.value ? "rgba(124,58,237,0.15)" : "transparent",
+                border: "none", borderRadius: 8, padding: "7px 12px",
+                color: opt.value === "auto" ? "#6b6b85" : opt.color,
+                fontSize: 12, fontFamily: "monospace", fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {opt.label}
+              {value === opt.value && <span style={{ float: "right", color: "#06d6a0" }}>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -207,6 +274,7 @@ export default function Home() {
   const [isLandscape, setIsLandscape] = useState(false);
   const [motionDetected, setMotionDetected] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [defaultLang, setDefaultLang] = useState("auto");
   const [toast, setToast] = useState<{ msg: string; type: "info" | "error" | "success" } | null>(null);
 
   // Detect orientation
@@ -307,7 +375,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imageData }),
+        body: JSON.stringify({ image: imageData, defaultLang }),
       });
       const data = await res.json();
 
@@ -415,18 +483,16 @@ export default function Home() {
           <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "contain", display: cameraActive ? "block" : "none", background: "#000" }} playsInline muted />
           <canvas ref={canvasRef} style={{ display: "none" }} />
 
-          {/* Corners */}
           {cameraActive && (
             <>
               <div style={{ position: "absolute", top: 10, left: 10, width: 22, height: 22, borderTop: "2px solid #06d6a0", borderLeft: "2px solid #06d6a0" }} />
               <div style={{ position: "absolute", top: 10, right: 10, width: 22, height: 22, borderTop: "2px solid #06d6a0", borderRight: "2px solid #06d6a0" }} />
-              <div style={{ position: "absolute", bottom: 10, left: 10, width: 22, height: 22, borderBottom: "2px solid #06d6a0", borderLeft: "2px solid #06d6a0" }} />
-              <div style={{ position: "absolute", bottom: 10, right: 10, width: 22, height: 22, borderBottom: "2px solid #06d6a0", borderRight: "2px solid #06d6a0" }} />
-              {/* Motion indicator */}
+              <div style={{ position: "absolute", bottom: 48, left: 10, width: 22, height: 22, borderBottom: "2px solid #06d6a0", borderLeft: "2px solid #06d6a0" }} />
+              <div style={{ position: "absolute", bottom: 48, right: 10, width: 22, height: 22, borderBottom: "2px solid #06d6a0", borderRight: "2px solid #06d6a0" }} />
               <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", background: motionDetected ? "rgba(6,214,160,0.2)" : "rgba(107,107,133,0.2)", border: `1px solid ${motionDetected ? "#06d6a0" : "#6b6b85"}`, borderRadius: 20, padding: "3px 10px", fontSize: 9, color: motionDetected ? "#06d6a0" : "#6b6b85", fontFamily: "monospace", letterSpacing: 1 }}>
                 {motionDetected ? "● MOTION" : "◌ STILL"}
               </div>
-              <div style={{ position: "absolute", bottom: 10, left: 12, fontSize: 9, color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>F:{frameCount} API:{apiCallCount}</div>
+              <div style={{ position: "absolute", bottom: 50, left: 12, fontSize: 9, color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>F:{frameCount} API:{apiCallCount}</div>
             </>
           )}
 
@@ -440,19 +506,20 @@ export default function Home() {
 
           {/* Bottom controls bar */}
           {cameraActive && (
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(10,10,15,0.85)", backdropFilter: "blur(8px)", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid rgba(124,58,237,0.2)" }}>
-              <button onClick={stopCamera} style={{ padding: "6px 12px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, color: "#ef4444", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>⏹ STOP</button>
-              <button onClick={flipCamera} style={{ padding: "6px 10px", background: "#1a1a26", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 8, color: "#e8e8f0", fontSize: 14, cursor: "pointer" }}>🔄</button>
-              {/* Auto-scan toggle */}
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(10,10,15,0.9)", backdropFilter: "blur(8px)", padding: "6px 12px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid rgba(124,58,237,0.2)" }}>
+              <button onClick={stopCamera} style={{ padding: "5px 10px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, color: "#ef4444", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>⏹ STOP</button>
+              <button onClick={flipCamera} style={{ padding: "5px 8px", background: "#1a1a26", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 8, color: "#e8e8f0", fontSize: 14, cursor: "pointer" }}>🔄</button>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
-                <span style={{ fontSize: 10, color: "#6b6b85", fontFamily: "monospace" }}>AUTO</span>
-                <div onClick={() => setAutoScan(a => !a)} style={{ width: 36, height: 20, borderRadius: 10, background: autoScan ? "#7c3aed" : "#1a1a26", border: `1px solid ${autoScan ? "#7c3aed" : "rgba(124,58,237,0.3)"}`, cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-                  <div style={{ position: "absolute", top: 2, left: autoScan ? 18 : 2, width: 14, height: 14, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+                <span style={{ fontSize: 9, color: "#6b6b85", fontFamily: "monospace" }}>LANG</span>
+                <LangSelector value={defaultLang} onChange={setDefaultLang} />
+                <span style={{ fontSize: 9, color: "#6b6b85", fontFamily: "monospace", marginLeft: 4 }}>AUTO</span>
+                <div onClick={() => setAutoScan(a => !a)} style={{ width: 34, height: 18, borderRadius: 9, background: autoScan ? "#7c3aed" : "#1a1a26", border: `1px solid ${autoScan ? "#7c3aed" : "rgba(124,58,237,0.3)"}`, cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
+                  <div style={{ position: "absolute", top: 2, left: autoScan ? 16 : 2, width: 12, height: 12, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
                 </div>
                 {autoScan && (
-                  <div style={{ display: "flex", gap: 4 }}>
+                  <div style={{ display: "flex", gap: 3 }}>
                     {[2, 4, 6].map(s => (
-                      <button key={s} onClick={() => setScanInterval(s)} style={{ padding: "2px 6px", borderRadius: 6, border: `1px solid ${scanInterval === s ? "#06d6a0" : "rgba(124,58,237,0.2)"}`, background: scanInterval === s ? "rgba(6,214,160,0.1)" : "transparent", color: scanInterval === s ? "#06d6a0" : "#6b6b85", fontSize: 10, cursor: "pointer", fontFamily: "monospace" }}>{s}s</button>
+                      <button key={s} onClick={() => setScanInterval(s)} style={{ padding: "2px 5px", borderRadius: 5, border: `1px solid ${scanInterval === s ? "#06d6a0" : "rgba(124,58,237,0.2)"}`, background: scanInterval === s ? "rgba(6,214,160,0.1)" : "transparent", color: scanInterval === s ? "#06d6a0" : "#6b6b85", fontSize: 9, cursor: "pointer", fontFamily: "monospace" }}>{s}s</button>
                     ))}
                   </div>
                 )}
@@ -462,23 +529,8 @@ export default function Home() {
 
           {/* Floating SCAN button */}
           {cameraActive && (
-            <button
-              onClick={handleManualScan}
-              disabled={isAnalyzing || status === "cooldown"}
-              style={{
-                position: "absolute", bottom: 56, right: 16,
-                width: 60, height: 60, borderRadius: "50%",
-                background: isAnalyzing ? "linear-gradient(135deg, #7c3aed, #f72585)" : status === "cooldown" ? "#1a1a26" : "linear-gradient(135deg, #7c3aed, #f72585)",
-                border: `2px solid ${status === "cooldown" ? "#6b6b85" : "rgba(255,255,255,0.2)"}`,
-                color: "white", fontSize: isAnalyzing ? 20 : 11, fontWeight: 700,
-                cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer",
-                fontFamily: "monospace", letterSpacing: 1,
-                boxShadow: status === "cooldown" ? "none" : "0 0 20px rgba(124,58,237,0.5)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                animation: isAnalyzing ? "spin 1s linear infinite" : "none",
-                opacity: isAnalyzing ? 0.85 : 1,
-              }}
-            >
+            <button onClick={handleManualScan} disabled={isAnalyzing || status === "cooldown"}
+              style={{ position: "absolute", bottom: 52, right: 16, width: 56, height: 56, borderRadius: "50%", background: status === "cooldown" ? "#1a1a26" : "linear-gradient(135deg, #7c3aed, #f72585)", border: `2px solid ${status === "cooldown" ? "#6b6b85" : "rgba(255,255,255,0.2)"}`, color: "white", fontSize: isAnalyzing ? 20 : 11, fontWeight: 700, cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer", fontFamily: "monospace", letterSpacing: 1, boxShadow: status === "cooldown" ? "none" : "0 0 20px rgba(124,58,237,0.5)", display: "flex", alignItems: "center", justifyContent: "center", animation: isAnalyzing ? "spin 1s linear infinite" : "none" }}>
               {isAnalyzing ? "⟳" : status === "cooldown" ? cooldownLeft : "SCAN"}
             </button>
           )}
@@ -486,13 +538,10 @@ export default function Home() {
 
         {/* RIGHT: Response panel */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {/* Header */}
           <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(124,58,237,0.2)", background: "#12121a", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 26, height: 26, borderRadius: 7, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>👁️</div>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, fontFamily: "monospace", color: "#e8e8f0" }}>VISIONQ</div>
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: 2, fontFamily: "monospace", color: "#e8e8f0" }}>VISIONQ</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#0a0a0f", padding: "4px 10px", borderRadius: 20, border: "1px solid rgba(124,58,237,0.2)" }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: sc.dot, boxShadow: `0 0 5px ${sc.dot}` }} />
@@ -500,8 +549,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Answer area */}
-          <div ref={answerPanelRef} style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             {error && <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 10, padding: "8px 12px", fontSize: 12, color: "#ef4444" }}>⚠️ {error}</div>}
 
             {result?.hasQuestion ? (
@@ -517,7 +565,7 @@ export default function Home() {
                     </span>
                   )}
                 </div>
-                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10, minWidth: 0, overflow: "hidden" }}>
                   <div style={{ width: 20, height: 20, borderRadius: 5, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0 }}>✦</div>
                   <div style={{ margin: 0, fontSize: 13, lineHeight: 1.8, color: "#e8e8f0", minWidth: 0, overflow: "hidden" }}>{renderAnswer(result.answer)}</div>
                 </div>
@@ -531,7 +579,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* History */}
             {history.length > 1 && (
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -548,7 +595,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Footer */}
           <div style={{ borderTop: "1px solid rgba(124,58,237,0.15)", padding: "8px 14px", background: "#12121a", textAlign: "center" }}>
             <p style={{ margin: 0, fontSize: 9, color: "#6b6b85", fontFamily: "monospace", letterSpacing: 1 }}>
               DEVELOPED BY <span style={{ color: "#7c3aed", fontWeight: 700 }}>JOHN CARLO V. DIZON</span>
@@ -556,19 +602,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Toast notification */}
         {toast && (
-          <div style={{
-            position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
-            background: toastColors[toast.type].bg,
-            border: `1px solid ${toastColors[toast.type].border}`,
-            color: toastColors[toast.type].color,
-            padding: "10px 20px", borderRadius: 12, fontSize: 13, fontWeight: 600,
-            zIndex: 999, backdropFilter: "blur(10px)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
-            whiteSpace: "nowrap", fontFamily: "monospace",
-            animation: "fade-in-up 0.3s ease-out",
-          }}>
+          <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: toastColors[toast.type].bg, border: `1px solid ${toastColors[toast.type].border}`, color: toastColors[toast.type].color, padding: "10px 20px", borderRadius: 12, fontSize: 13, fontWeight: 600, zIndex: 999, backdropFilter: "blur(10px)", boxShadow: "0 4px 20px rgba(0,0,0,0.4)", whiteSpace: "nowrap", fontFamily: "monospace", animation: "fade-in-up 0.3s ease-out" }}>
             {toast.msg}
           </div>
         )}
@@ -636,23 +671,26 @@ export default function Home() {
           )}
         </div>
 
-        {/* Auto-scan toggle + interval */}
+        {/* Lang + Auto-scan row */}
         {cameraActive && (
-          <div style={{ background: "#12121a", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 11, color: "#6b6b85", letterSpacing: 1, fontFamily: "monospace" }}>AUTO SCAN</span>
-            <div onClick={() => setAutoScan(a => !a)} style={{ width: 40, height: 22, borderRadius: 11, background: autoScan ? "#7c3aed" : "#1a1a26", border: `1px solid ${autoScan ? "#7c3aed" : "rgba(124,58,237,0.3)"}`, cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 3, left: autoScan ? 20 : 3, width: 14, height: 14, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+          <div style={{ background: "#12121a", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, color: "#6b6b85", letterSpacing: 1, fontFamily: "monospace" }}>LANG</span>
+              <LangSelector value={defaultLang} onChange={setDefaultLang} />
             </div>
-            {autoScan && (
-              <>
-                <span style={{ fontSize: 11, color: "#6b6b85", fontFamily: "monospace" }}>EVERY</span>
-                <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 11, color: "#6b6b85", letterSpacing: 1, fontFamily: "monospace" }}>AUTO</span>
+              <div onClick={() => setAutoScan(a => !a)} style={{ width: 40, height: 22, borderRadius: 11, background: autoScan ? "#7c3aed" : "#1a1a26", border: `1px solid ${autoScan ? "#7c3aed" : "rgba(124,58,237,0.3)"}`, cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+                <div style={{ position: "absolute", top: 3, left: autoScan ? 20 : 3, width: 14, height: 14, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+              </div>
+              {autoScan && (
+                <div style={{ display: "flex", gap: 4 }}>
                   {[2, 4, 6, 10].map((s) => (
-                    <button key={s} onClick={() => setScanInterval(s)} style={{ padding: "4px 10px", borderRadius: 8, border: `1px solid ${scanInterval === s ? "#06d6a0" : "rgba(124,58,237,0.2)"}`, background: scanInterval === s ? "rgba(6,214,160,0.1)" : "transparent", color: scanInterval === s ? "#06d6a0" : "#6b6b85", fontSize: 12, cursor: "pointer", fontFamily: "monospace", fontWeight: 700 }}>{s}s</button>
+                    <button key={s} onClick={() => setScanInterval(s)} style={{ padding: "3px 8px", borderRadius: 8, border: `1px solid ${scanInterval === s ? "#06d6a0" : "rgba(124,58,237,0.2)"}`, background: scanInterval === s ? "rgba(6,214,160,0.1)" : "transparent", color: scanInterval === s ? "#06d6a0" : "#6b6b85", fontSize: 11, cursor: "pointer", fontFamily: "monospace", fontWeight: 700 }}>{s}s</button>
                   ))}
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
         )}
 
