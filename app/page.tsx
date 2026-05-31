@@ -7,7 +7,27 @@ interface AnalysisResult {
   hasQuestion: boolean;
   question: string;
   answer: string;
+  language?: string;
 }
+
+const LANG_COLORS: Record<string, { bg: string; color: string; label: string }> = {
+  python:     { bg: "rgba(55,118,171,0.2)",  color: "#4b9cd3", label: "🐍 Python" },
+  javascript: { bg: "rgba(240,219,79,0.2)",  color: "#f0db4f", label: "⚡ JavaScript" },
+  typescript: { bg: "rgba(49,120,198,0.2)",  color: "#3178c6", label: "🔷 TypeScript" },
+  java:       { bg: "rgba(234,88,12,0.2)",   color: "#ea580c", label: "☕ Java" },
+  cpp:        { bg: "rgba(0,89,156,0.2)",    color: "#00599c", label: "⚙️ C++" },
+  c:          { bg: "rgba(90,90,90,0.2)",    color: "#aaaaaa", label: "🔧 C" },
+  csharp:     { bg: "rgba(104,33,122,0.2)",  color: "#68217a", label: "🟣 C#" },
+  php:        { bg: "rgba(119,123,180,0.2)", color: "#777bb4", label: "🐘 PHP" },
+  ruby:       { bg: "rgba(204,52,45,0.2)",   color: "#cc341d", label: "💎 Ruby" },
+  go:         { bg: "rgba(0,173,216,0.2)",   color: "#00add8", label: "🐹 Go" },
+  rust:       { bg: "rgba(222,165,132,0.2)", color: "#dea584", label: "🦀 Rust" },
+  swift:      { bg: "rgba(240,81,56,0.2)",   color: "#f05138", label: "🍎 Swift" },
+  kotlin:     { bg: "rgba(127,82,255,0.2)",  color: "#7f52ff", label: "🎯 Kotlin" },
+  sql:        { bg: "rgba(0,150,136,0.2)",   color: "#009688", label: "🗄️ SQL" },
+  bash:       { bg: "rgba(35,35,35,0.4)",    color: "#aaaaaa", label: "💻 Bash" },
+  none:       { bg: "rgba(107,107,133,0.2)", color: "#6b6b85", label: "" },
+};
 
 // Syntax highlight tokens per language
 function highlightCode(code: string, lang: string): React.ReactNode[] {
@@ -186,6 +206,8 @@ export default function Home() {
   const [cooldownLeft, setCooldownLeft] = useState(0);
   const [isLandscape, setIsLandscape] = useState(false);
   const [motionDetected, setMotionDetected] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "info" | "error" | "success" } | null>(null);
 
   // Detect orientation
   useEffect(() => {
@@ -197,6 +219,11 @@ export default function Home() {
       window.removeEventListener("resize", check);
       window.removeEventListener("orientationchange", check);
     };
+  }, []);
+
+  const showToast = useCallback((msg: string, type: "info" | "error" | "success" = "info") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
   }, []);
 
   const startCooldown = useCallback(() => {
@@ -237,12 +264,22 @@ export default function Home() {
     return ratio > MOTION_PERCENT;
   }, []);
 
-  const captureAndAnalyze = useCallback(async () => {
+  const captureAndAnalyze = useCallback(async (manual = false) => {
     if (!videoRef.current || !canvasRef.current) return;
-    if (status === "cooldown") return;
+    if (status === "cooldown") {
+      if (manual) showToast(`⏳ Cooldown — wait ${cooldownLeft}s`, "info");
+      return;
+    }
+    if (isAnalyzing) {
+      if (manual) showToast("⏳ Already scanning, please wait...", "info");
+      return;
+    }
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (video.readyState < 2) return;
+    if (video.readyState < 2) {
+      if (manual) showToast("📷 Camera not ready yet", "error");
+      return;
+    }
 
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
@@ -250,17 +287,20 @@ export default function Home() {
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
 
-    // Motion detection
-    const hasMotion = detectMotion(canvas);
-    setMotionDetected(hasMotion);
-    if (!hasMotion) {
-      setStatus("scanning");
-      return; // skip API call — nothing changed
+    if (!manual) {
+      const hasMotion = detectMotion(canvas);
+      setMotionDetected(hasMotion);
+      if (!hasMotion) { setStatus("scanning"); return; }
+    } else {
+      detectMotion(canvas);
+      setMotionDetected(true);
     }
 
     const imageData = canvas.toDataURL("image/jpeg", 0.75);
     setFrameCount((c) => c + 1);
+    setIsAnalyzing(true);
     setStatus("scanning");
+    if (manual) showToast("🔍 Analyzing frame...", "info");
 
     try {
       setApiCallCount((c) => c + 1);
@@ -274,29 +314,31 @@ export default function Home() {
       if (res.status === 401) {
         setStatus("error");
         setError("Invalid API key.");
+        showToast("❌ Invalid API key", "error");
         return;
       }
 
       if (data.hasQuestion) {
         setStatus("detected");
         setResult(data);
+        showToast("✅ Question detected!", "success");
         setHistory((prev) => {
           const exists = prev.find((h) => h.question === data.question);
           if (exists) return prev;
           return [data, ...prev].slice(0, 20);
         });
         startCooldown();
-        setTimeout(() => {
-          answerPanelRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-          document.getElementById("answer-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
       } else {
         setStatus("scanning");
+        if (manual) showToast("🤷 No question detected in frame", "info");
       }
     } catch {
       setStatus("scanning");
+      if (manual) showToast("❌ Network error — check connection", "error");
+    } finally {
+      setIsAnalyzing(false);
     }
-  }, [status, detectMotion, startCooldown]);
+  }, [status, cooldownLeft, isAnalyzing, detectMotion, startCooldown, showToast]);
 
   // Auto-scan interval
   useEffect(() => {
@@ -346,9 +388,8 @@ export default function Home() {
   }, [stopCamera, startCamera, facingMode]);
 
   const handleManualScan = useCallback(() => {
-    if (status === "cooldown") return;
-    captureAndAnalyze();
-  }, [status, captureAndAnalyze]);
+    captureAndAnalyze(true);
+  }, [captureAndAnalyze]);
 
   const statusConfig: Record<ScanStatus, { label: string; color: string; dot: string }> = {
     idle: { label: "READY", color: "#6b6b85", dot: "#6b6b85" },
@@ -358,6 +399,12 @@ export default function Home() {
     error: { label: "ERROR", color: "#ef4444", dot: "#ef4444" },
   };
   const sc = statusConfig[status];
+
+  const toastColors = {
+    info: { bg: "rgba(124,58,237,0.15)", border: "rgba(124,58,237,0.4)", color: "#a78bfa" },
+    error: { bg: "rgba(239,68,68,0.15)", border: "rgba(239,68,68,0.4)", color: "#ef4444" },
+    success: { bg: "rgba(6,214,160,0.15)", border: "rgba(6,214,160,0.4)", color: "#06d6a0" },
+  };
 
   // ── LANDSCAPE LAYOUT ──────────────────────────────────────────────
   if (isLandscape) {
@@ -417,19 +464,22 @@ export default function Home() {
           {cameraActive && (
             <button
               onClick={handleManualScan}
-              disabled={status === "cooldown"}
+              disabled={isAnalyzing || status === "cooldown"}
               style={{
                 position: "absolute", bottom: 56, right: 16,
-                width: 56, height: 56, borderRadius: "50%",
-                background: status === "cooldown" ? "#1a1a26" : "linear-gradient(135deg, #7c3aed, #f72585)",
+                width: 60, height: 60, borderRadius: "50%",
+                background: isAnalyzing ? "linear-gradient(135deg, #7c3aed, #f72585)" : status === "cooldown" ? "#1a1a26" : "linear-gradient(135deg, #7c3aed, #f72585)",
                 border: `2px solid ${status === "cooldown" ? "#6b6b85" : "rgba(255,255,255,0.2)"}`,
-                color: "white", fontSize: 11, fontWeight: 700, cursor: status === "cooldown" ? "not-allowed" : "pointer",
+                color: "white", fontSize: isAnalyzing ? 20 : 11, fontWeight: 700,
+                cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer",
                 fontFamily: "monospace", letterSpacing: 1,
                 boxShadow: status === "cooldown" ? "none" : "0 0 20px rgba(124,58,237,0.5)",
                 display: "flex", alignItems: "center", justifyContent: "center",
+                animation: isAnalyzing ? "spin 1s linear infinite" : "none",
+                opacity: isAnalyzing ? 0.85 : 1,
               }}
             >
-              {status === "cooldown" ? cooldownLeft : "SCAN"}
+              {isAnalyzing ? "⟳" : status === "cooldown" ? cooldownLeft : "SCAN"}
             </button>
           )}
         </div>
@@ -456,9 +506,16 @@ export default function Home() {
 
             {result?.hasQuestion ? (
               <div style={{ background: "#12121a", border: "1px solid rgba(6,214,160,0.3)", borderRadius: 14, padding: 14, boxShadow: "0 0 20px rgba(6,214,160,0.08)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#f72585" }} />
-                  <span style={{ fontSize: 9, color: "#f72585", letterSpacing: 1, fontFamily: "monospace" }}>DETECTED</span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#f72585" }} />
+                    <span style={{ fontSize: 9, color: "#f72585", letterSpacing: 1, fontFamily: "monospace" }}>DETECTED</span>
+                  </div>
+                  {result.language && result.language !== "none" && LANG_COLORS[result.language] && (
+                    <span style={{ fontSize: 10, fontWeight: 700, fontFamily: "monospace", padding: "2px 8px", borderRadius: 20, background: LANG_COLORS[result.language].bg, color: LANG_COLORS[result.language].color, border: `1px solid ${LANG_COLORS[result.language].color}40` }}>
+                      {LANG_COLORS[result.language].label}
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                   <div style={{ width: 20, height: 20, borderRadius: 5, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0 }}>✦</div>
@@ -498,6 +555,23 @@ export default function Home() {
             </p>
           </div>
         </div>
+
+        {/* Toast notification */}
+        {toast && (
+          <div style={{
+            position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+            background: toastColors[toast.type].bg,
+            border: `1px solid ${toastColors[toast.type].border}`,
+            color: toastColors[toast.type].color,
+            padding: "10px 20px", borderRadius: 12, fontSize: 13, fontWeight: 600,
+            zIndex: 999, backdropFilter: "blur(10px)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.4)",
+            whiteSpace: "nowrap", fontFamily: "monospace",
+            animation: "fade-in-up 0.3s ease-out",
+          }}>
+            {toast.msg}
+          </div>
+        )}
       </div>
     );
   }
@@ -553,8 +627,8 @@ export default function Home() {
           ) : (
             <>
               {/* Manual SCAN button */}
-              <button onClick={handleManualScan} disabled={status === "cooldown"} style={{ flex: 1, padding: 12, background: status === "cooldown" ? "rgba(107,107,133,0.1)" : "linear-gradient(135deg, #7c3aed, #f72585)", border: status === "cooldown" ? "1px solid #6b6b85" : "none", borderRadius: 12, color: status === "cooldown" ? "#6b6b85" : "white", fontFamily: "sans-serif", fontSize: 14, fontWeight: 700, cursor: status === "cooldown" ? "not-allowed" : "pointer" }}>
-                {status === "cooldown" ? `⏳ COOLDOWN ${cooldownLeft}s` : "🔍 SCAN NOW"}
+              <button onClick={handleManualScan} disabled={isAnalyzing || status === "cooldown"} style={{ flex: 1, padding: 12, background: isAnalyzing ? "rgba(124,58,237,0.3)" : status === "cooldown" ? "rgba(107,107,133,0.1)" : "linear-gradient(135deg, #7c3aed, #f72585)", border: (isAnalyzing || status === "cooldown") ? "1px solid #6b6b85" : "none", borderRadius: 12, color: (isAnalyzing || status === "cooldown") ? "#6b6b85" : "white", fontFamily: "sans-serif", fontSize: 14, fontWeight: 700, cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                {isAnalyzing ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span> ANALYZING...</> : status === "cooldown" ? `⏳ COOLDOWN ${cooldownLeft}s` : "🔍 SCAN NOW"}
               </button>
               <button onClick={flipCamera} style={{ padding: "12px 14px", background: "#1a1a26", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 12, color: "#e8e8f0", fontSize: 16, cursor: "pointer" }}>🔄</button>
               <button onClick={stopCamera} style={{ padding: "12px 14px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, color: "#ef4444", fontSize: 16, cursor: "pointer" }}>⏹</button>
@@ -588,9 +662,16 @@ export default function Home() {
         {/* Current Answer */}
         {result?.hasQuestion && (
           <div id="answer-card" style={{ background: "#12121a", border: "1px solid rgba(6,214,160,0.3)", borderRadius: 16, padding: 16, boxShadow: "0 0 30px rgba(6,214,160,0.08)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f72585", boxShadow: "0 0 6px #f72585" }} />
-              <span style={{ fontSize: 10, color: "#f72585", letterSpacing: 1, fontFamily: "monospace" }}>DETECTED QUESTION</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f72585", boxShadow: "0 0 6px #f72585" }} />
+                <span style={{ fontSize: 10, color: "#f72585", letterSpacing: 1, fontFamily: "monospace" }}>DETECTED QUESTION</span>
+              </div>
+              {result.language && result.language !== "none" && LANG_COLORS[result.language] && (
+                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "monospace", padding: "2px 10px", borderRadius: 20, background: LANG_COLORS[result.language].bg, color: LANG_COLORS[result.language].color, border: `1px solid ${LANG_COLORS[result.language].color}40` }}>
+                  {LANG_COLORS[result.language].label}
+                </span>
+              )}
             </div>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0, overflow: "hidden", marginBottom: 12 }}>
               <div style={{ width: 24, height: 24, borderRadius: 6, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, marginTop: 2 }}>✦</div>
@@ -624,21 +705,22 @@ export default function Home() {
       {cameraActive && (
         <button
           onClick={handleManualScan}
-          disabled={status === "cooldown"}
+          disabled={isAnalyzing || status === "cooldown"}
           style={{
             position: "fixed", bottom: 24, right: 20,
             width: 60, height: 60, borderRadius: "50%",
             background: status === "cooldown" ? "#1a1a26" : "linear-gradient(135deg, #7c3aed, #f72585)",
             border: `2px solid ${status === "cooldown" ? "#6b6b85" : "rgba(255,255,255,0.2)"}`,
-            color: "white", fontSize: 10, fontWeight: 700,
-            cursor: status === "cooldown" ? "not-allowed" : "pointer",
+            color: "white", fontSize: isAnalyzing ? 22 : 10, fontWeight: 700,
+            cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer",
             fontFamily: "monospace", letterSpacing: 1,
             boxShadow: status === "cooldown" ? "none" : "0 0 24px rgba(124,58,237,0.6)",
             display: "flex", alignItems: "center", justifyContent: "center",
             zIndex: 100,
+            animation: isAnalyzing ? "spin 1s linear infinite" : "none",
           }}
         >
-          {status === "cooldown" ? cooldownLeft : "SCAN"}
+          {isAnalyzing ? "⟳" : status === "cooldown" ? cooldownLeft : "SCAN"}
         </button>
       )}
 
