@@ -170,6 +170,7 @@ export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const prevFrameRef = useRef<ImageData | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const answerPanelRef = useRef<HTMLDivElement>(null);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [cameraActive, setCameraActive] = useState(false);
@@ -285,6 +286,10 @@ export default function Home() {
           return [data, ...prev].slice(0, 20);
         });
         startCooldown();
+        setTimeout(() => {
+          answerPanelRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+          document.getElementById("answer-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
       } else {
         setStatus("scanning");
       }
@@ -446,7 +451,7 @@ export default function Home() {
           </div>
 
           {/* Answer area */}
-          <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div ref={answerPanelRef} style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
             {error && <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 10, padding: "8px 12px", fontSize: 12, color: "#ef4444" }}>⚠️ {error}</div>}
 
             {result?.hasQuestion ? (
@@ -455,12 +460,12 @@ export default function Home() {
                   <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#f72585" }} />
                   <span style={{ fontSize: 9, color: "#f72585", letterSpacing: 1, fontFamily: "monospace" }}>DETECTED</span>
                 </div>
-                <p style={{ margin: "0 0 10px", fontSize: 12, color: "#6b6b85", fontStyle: "italic", lineHeight: 1.5 }}>&ldquo;{result.question}&rdquo;</p>
-                <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                   <div style={{ width: 20, height: 20, borderRadius: 5, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, flexShrink: 0 }}>✦</div>
                   <div style={{ margin: 0, fontSize: 13, lineHeight: 1.8, color: "#e8e8f0", minWidth: 0, overflow: "hidden" }}>{renderAnswer(result.answer)}</div>
                 </div>
+                <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
+                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#6b6b85", fontStyle: "italic", lineHeight: 1.5 }}>&ldquo;{result.question}&rdquo;</p>
               </div>
             ) : (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, opacity: 0.4 }}>
@@ -582,17 +587,17 @@ export default function Home() {
 
         {/* Current Answer */}
         {result?.hasQuestion && (
-          <div style={{ background: "#12121a", border: "1px solid rgba(6,214,160,0.3)", borderRadius: 16, padding: 16, boxShadow: "0 0 30px rgba(6,214,160,0.08)" }}>
+          <div id="answer-card" style={{ background: "#12121a", border: "1px solid rgba(6,214,160,0.3)", borderRadius: 16, padding: 16, boxShadow: "0 0 30px rgba(6,214,160,0.08)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f72585", boxShadow: "0 0 6px #f72585" }} />
               <span style={{ fontSize: 10, color: "#f72585", letterSpacing: 1, fontFamily: "monospace" }}>DETECTED QUESTION</span>
             </div>
-            <p style={{ margin: "0 0 12px", fontSize: 13, color: "#6b6b85", fontStyle: "italic", lineHeight: 1.5 }}>&ldquo;{result.question}&rdquo;</p>
-            <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0, overflow: "hidden" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, minWidth: 0, overflow: "hidden", marginBottom: 12 }}>
               <div style={{ width: 24, height: 24, borderRadius: 6, background: "linear-gradient(135deg, #7c3aed, #f72585)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, flexShrink: 0, marginTop: 2 }}>✦</div>
               <div style={{ margin: 0, fontSize: 14, lineHeight: 1.8, color: "#e8e8f0", minWidth: 0, overflow: "hidden" }}>{renderAnswer(result.answer)}</div>
             </div>
+            <div style={{ height: 1, background: "rgba(124,58,237,0.2)", margin: "8px 0" }} />
+            <p style={{ margin: "8px 0 0", fontSize: 12, color: "#6b6b85", fontStyle: "italic", lineHeight: 1.5 }}>&ldquo;{result.question}&rdquo;</p>
           </div>
         )}
 
