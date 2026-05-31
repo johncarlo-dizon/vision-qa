@@ -163,7 +163,7 @@ type ScanStatus = "idle" | "scanning" | "detected" | "cooldown" | "error";
 
 const MOTION_THRESHOLD = 30; // pixel diff threshold (0-255)
 const MOTION_PERCENT = 0.04; // 4% of pixels must change
-const COOLDOWN_SECONDS = 30;
+const COOLDOWN_SECONDS = 15;
 
 export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -307,7 +307,7 @@ export default function Home() {
       setError("");
       prevFrameRef.current = null;
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode ?? facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: mode ?? facingMode, width: { ideal: 1920 }, height: { ideal: 1080 }, aspectRatio: { ideal: 16/9 } },
       });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -360,7 +360,7 @@ export default function Home() {
       <div style={{ display: "flex", height: "100vh", background: "#0a0a0f", overflow: "hidden" }}>
         {/* LEFT: Camera */}
         <div style={{ flex: "0 0 58%", position: "relative", background: "#12121a", borderRight: "1px solid rgba(124,58,237,0.2)" }}>
-          <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover", display: cameraActive ? "block" : "none" }} playsInline muted />
+          <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "contain", display: cameraActive ? "block" : "none", background: "#000" }} playsInline muted />
           <canvas ref={canvasRef} style={{ display: "none" }} />
 
           {/* Corners */}
@@ -516,8 +516,8 @@ export default function Home() {
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: 12, gap: 12 }}>
         {/* Camera */}
-        <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: "#12121a", border: `1px solid ${cameraActive ? "rgba(6,214,160,0.4)" : "rgba(124,58,237,0.2)"}`, aspectRatio: "16/9", boxShadow: cameraActive ? "0 0 30px rgba(124,58,237,0.2)" : "none" }}>
-          <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover", display: cameraActive ? "block" : "none" }} playsInline muted />
+        <div style={{ position: "relative", borderRadius: 16, overflow: "hidden", background: "#12121a", border: `1px solid ${cameraActive ? "rgba(6,214,160,0.4)" : "rgba(124,58,237,0.2)"}`, aspectRatio: "16/9", minHeight: 180, boxShadow: cameraActive ? "0 0 30px rgba(124,58,237,0.2)" : "none" }}>
+          <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "contain", display: cameraActive ? "block" : "none", background: "#000" }} playsInline muted />
           {cameraActive && (
             <>
               <div style={{ position: "absolute", top: 8, left: 8, width: 20, height: 20, borderTop: "2px solid #06d6a0", borderLeft: "2px solid #06d6a0" }} />
