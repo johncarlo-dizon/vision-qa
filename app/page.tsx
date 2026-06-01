@@ -181,8 +181,8 @@ function renderAnswer(text: string) {
 
 type ScanStatus = "idle" | "scanning" | "detected" | "cooldown" | "error";
 
-const MOTION_THRESHOLD = 30; // pixel diff threshold (0-255)
-const MOTION_PERCENT = 0.04; // 4% of pixels must change
+const MOTION_THRESHOLD = 15; // pixel diff threshold (lowered for sensitivity)
+const MOTION_PERCENT = 0.01; // 1% of pixels must change (was 4%)
 const COOLDOWN_SECONDS = 15;
 
 const LANG_OPTIONS = [
@@ -259,17 +259,18 @@ export default function Home() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const answerPanelRef = useRef<HTMLDivElement>(null);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastForcedRef = useRef<number>(0); // timestamp of last forced scan
 
   const [cameraActive, setCameraActive] = useState(false);
   const [status, setStatus] = useState<ScanStatus>("idle");
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [history, setHistory] = useState<AnalysisResult[]>([]);
-  const [scanInterval, setScanInterval] = useState(4);
+  const [scanInterval, setScanInterval] = useState(3);
   const [frameCount, setFrameCount] = useState(0);
   const [apiCallCount, setApiCallCount] = useState(0);
   const [error, setError] = useState("");
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
-  const [autoScan, setAutoScan] = useState(false);
+  const [autoScan, setAutoScan] = useState(true);
   const [cooldownLeft, setCooldownLeft] = useState(0);
   const [isLandscape, setIsLandscape] = useState(false);
   const [motionDetected, setMotionDetected] = useState(false);
@@ -358,13 +359,31 @@ export default function Home() {
     if (!manual) {
       const hasMotion = detectMotion(canvas);
       setMotionDetected(hasMotion);
-      if (!hasMotion) { setStatus("scanning"); return; }
+      const now = Date.now();
+      const timeSinceForced = now - lastForcedRef.current;
+      const shouldForce = timeSinceForced > 10000; // force scan every 10s regardless of motion
+      if (!hasMotion && !shouldForce) { setStatus("scanning"); return; }
+      if (shouldForce) lastForcedRef.current = now;
     } else {
       detectMotion(canvas);
       setMotionDetected(true);
+      lastForcedRef.current = Date.now();
     }
 
+    // Enhance image for better text detection
     const imageData = canvas.toDataURL("image/jpeg", 0.75);
+
+    // Preprocessing: boost contrast and sharpness on a temp canvas
+    const tempCanvas = document.createElement("canvas");
+    const scale = Math.min(1, 1280 / canvas.width); // cap at 1280px wide
+    tempCanvas.width = Math.round(canvas.width * scale);
+    tempCanvas.height = Math.round(canvas.height * scale);
+    const tCtx = tempCanvas.getContext("2d");
+    if (tCtx) {
+      tCtx.filter = "contrast(1.4) brightness(1.1) saturate(0.8)";
+      tCtx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+    }
+    const enhancedImage = tCtx ? tempCanvas.toDataURL("image/jpeg", 0.92) : imageData;
     setFrameCount((c) => c + 1);
     setIsAnalyzing(true);
     setStatus("scanning");
@@ -375,7 +394,7 @@ export default function Home() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: imageData, defaultLang }),
+        body: JSON.stringify({ image: enhancedImage, defaultLang }),
       });
       const data = await res.json();
 
@@ -396,8 +415,10 @@ export default function Home() {
           return [data, ...prev].slice(0, 20);
         });
         startCooldown();
+        setScanInterval(6); // back off after detection — question likely still showing
       } else {
         setStatus("scanning");
+        setScanInterval(3); // restore fast scanning
         if (manual) showToast("🤷 No question detected in frame", "info");
       }
     } catch {
@@ -507,32 +528,24 @@ export default function Home() {
           {/* Bottom controls bar */}
           {cameraActive && (
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(10,10,15,0.9)", backdropFilter: "blur(8px)", padding: "6px 12px", display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid rgba(124,58,237,0.2)" }}>
-              <button onClick={stopCamera} style={{ padding: "5px 10px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, color: "#ef4444", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>⏹ STOP</button>
+              <button onClick={stopCamera} style={{ padding: "5px 10px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, color: "#ef4444", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "monospace" }}>⏹ STOP</button>
               <button onClick={flipCamera} style={{ padding: "5px 8px", background: "#1a1a26", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 8, color: "#e8e8f0", fontSize: 14, cursor: "pointer" }}>🔄</button>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 9, color: "#6b6b85", fontFamily: "monospace" }}>LANG</span>
                 <LangSelector value={defaultLang} onChange={setDefaultLang} />
-                <span style={{ fontSize: 9, color: "#6b6b85", fontFamily: "monospace", marginLeft: 4 }}>AUTO</span>
-                <div onClick={() => setAutoScan(a => !a)} style={{ width: 34, height: 18, borderRadius: 9, background: autoScan ? "#7c3aed" : "#1a1a26", border: `1px solid ${autoScan ? "#7c3aed" : "rgba(124,58,237,0.3)"}`, cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-                  <div style={{ position: "absolute", top: 2, left: autoScan ? 16 : 2, width: 12, height: 12, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(124,58,237,0.1)", padding: "3px 10px", borderRadius: 20, border: "1px solid rgba(124,58,237,0.2)" }}>
+                  <div style={{ width: 5, height: 5, borderRadius: "50%", background: isAnalyzing ? "#f59e0b" : "#06d6a0", boxShadow: `0 0 4px ${isAnalyzing ? "#f59e0b" : "#06d6a0"}` }} />
+                  <span style={{ fontSize: 9, color: isAnalyzing ? "#f59e0b" : "#06d6a0", fontFamily: "monospace" }}>
+                    {isAnalyzing ? "AI..." : status === "cooldown" ? `${cooldownLeft}s` : `${scanInterval}s`}
+                  </span>
                 </div>
-                {autoScan && (
-                  <div style={{ display: "flex", gap: 3 }}>
-                    {[2, 4, 6].map(s => (
-                      <button key={s} onClick={() => setScanInterval(s)} style={{ padding: "2px 5px", borderRadius: 5, border: `1px solid ${scanInterval === s ? "#06d6a0" : "rgba(124,58,237,0.2)"}`, background: scanInterval === s ? "rgba(6,214,160,0.1)" : "transparent", color: scanInterval === s ? "#06d6a0" : "#6b6b85", fontSize: 9, cursor: "pointer", fontFamily: "monospace" }}>{s}s</button>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           )}
 
-          {/* Floating SCAN button */}
-          {cameraActive && (
-            <button onClick={handleManualScan} disabled={isAnalyzing || status === "cooldown"}
-              style={{ position: "absolute", bottom: 52, right: 16, width: 56, height: 56, borderRadius: "50%", background: status === "cooldown" ? "#1a1a26" : "linear-gradient(135deg, #7c3aed, #f72585)", border: `2px solid ${status === "cooldown" ? "#6b6b85" : "rgba(255,255,255,0.2)"}`, color: "white", fontSize: isAnalyzing ? 20 : 11, fontWeight: 700, cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer", fontFamily: "monospace", letterSpacing: 1, boxShadow: status === "cooldown" ? "none" : "0 0 20px rgba(124,58,237,0.5)", display: "flex", alignItems: "center", justifyContent: "center", animation: isAnalyzing ? "spin 1s linear infinite" : "none" }}>
-              {isAnalyzing ? "⟳" : status === "cooldown" ? cooldownLeft : "SCAN"}
-            </button>
+          {/* Analyzing indicator */}
+          {cameraActive && isAnalyzing && (
+            <div style={{ position: "absolute", bottom: 52, right: 16, width: 48, height: 48, borderRadius: "50%", background: "rgba(124,58,237,0.2)", border: "2px solid #7c3aed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, animation: "spin 1s linear infinite" }}>⟳</div>
           )}
         </div>
 
@@ -658,38 +671,27 @@ export default function Home() {
         {/* Controls row */}
         <div style={{ display: "flex", gap: 8 }}>
           {!cameraActive ? (
-            <button onClick={() => startCamera()} style={{ flex: 1, padding: 12, background: "linear-gradient(135deg, #7c3aed, #9333ea)", border: "none", borderRadius: 12, color: "white", fontFamily: "sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: 1 }}>▶ START SCANNING</button>
+            <button onClick={() => startCamera()} style={{ flex: 1, padding: 14, background: "linear-gradient(135deg, #7c3aed, #9333ea)", border: "none", borderRadius: 14, color: "white", fontFamily: "monospace", fontSize: 14, fontWeight: 700, cursor: "pointer", letterSpacing: 2, boxShadow: "0 0 24px rgba(124,58,237,0.4)" }}>▶ START</button>
           ) : (
             <>
-              {/* Manual SCAN button */}
-              <button onClick={handleManualScan} disabled={isAnalyzing || status === "cooldown"} style={{ flex: 1, padding: 12, background: isAnalyzing ? "rgba(124,58,237,0.3)" : status === "cooldown" ? "rgba(107,107,133,0.1)" : "linear-gradient(135deg, #7c3aed, #f72585)", border: (isAnalyzing || status === "cooldown") ? "1px solid #6b6b85" : "none", borderRadius: 12, color: (isAnalyzing || status === "cooldown") ? "#6b6b85" : "white", fontFamily: "sans-serif", fontSize: 14, fontWeight: 700, cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                {isAnalyzing ? <><span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>⟳</span> ANALYZING...</> : status === "cooldown" ? `⏳ COOLDOWN ${cooldownLeft}s` : "🔍 SCAN NOW"}
-              </button>
-              <button onClick={flipCamera} style={{ padding: "12px 14px", background: "#1a1a26", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 12, color: "#e8e8f0", fontSize: 16, cursor: "pointer" }}>🔄</button>
-              <button onClick={stopCamera} style={{ padding: "12px 14px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 12, color: "#ef4444", fontSize: 16, cursor: "pointer" }}>⏹</button>
+              <button onClick={flipCamera} style={{ padding: "12px 16px", background: "#1a1a26", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 12, color: "#e8e8f0", fontSize: 18, cursor: "pointer" }}>🔄</button>
+              <button onClick={stopCamera} style={{ flex: 1, padding: 12, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12, color: "#ef4444", fontFamily: "monospace", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>⏹ STOP</button>
             </>
           )}
         </div>
 
-        {/* Lang + Auto-scan row */}
+        {/* Lang selector row */}
         {cameraActive && (
-          <div style={{ background: "#12121a", border: "1px solid rgba(124,58,237,0.2)", borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "space-between" }}>
+          <div style={{ background: "#12121a", border: "1px solid rgba(124,58,237,0.15)", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, color: "#6b6b85", letterSpacing: 1, fontFamily: "monospace" }}>LANG</span>
+              <span style={{ fontSize: 10, color: "#6b6b85", letterSpacing: 1, fontFamily: "monospace" }}>LANGUAGE</span>
               <LangSelector value={defaultLang} onChange={setDefaultLang} />
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, color: "#6b6b85", letterSpacing: 1, fontFamily: "monospace" }}>AUTO</span>
-              <div onClick={() => setAutoScan(a => !a)} style={{ width: 40, height: 22, borderRadius: 11, background: autoScan ? "#7c3aed" : "#1a1a26", border: `1px solid ${autoScan ? "#7c3aed" : "rgba(124,58,237,0.3)"}`, cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
-                <div style={{ position: "absolute", top: 3, left: autoScan ? 20 : 3, width: 14, height: 14, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
-              </div>
-              {autoScan && (
-                <div style={{ display: "flex", gap: 4 }}>
-                  {[2, 4, 6, 10].map((s) => (
-                    <button key={s} onClick={() => setScanInterval(s)} style={{ padding: "3px 8px", borderRadius: 8, border: `1px solid ${scanInterval === s ? "#06d6a0" : "rgba(124,58,237,0.2)"}`, background: scanInterval === s ? "rgba(6,214,160,0.1)" : "transparent", color: scanInterval === s ? "#06d6a0" : "#6b6b85", fontSize: 11, cursor: "pointer", fontFamily: "monospace", fontWeight: 700 }}>{s}s</button>
-                  ))}
-                </div>
-              )}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: isAnalyzing ? "#f59e0b" : "#06d6a0", boxShadow: `0 0 6px ${isAnalyzing ? "#f59e0b" : "#06d6a0"}`, animation: "pulse-dot 1.5s ease-in-out infinite" }} />
+              <span style={{ fontSize: 10, color: isAnalyzing ? "#f59e0b" : "#06d6a0", fontFamily: "monospace", letterSpacing: 1 }}>
+                {isAnalyzing ? "ANALYZING..." : status === "cooldown" ? `COOLDOWN ${cooldownLeft}s` : `SCANNING ${scanInterval}s`}
+              </span>
             </div>
           </div>
         )}
@@ -705,6 +707,7 @@ export default function Home() {
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f72585", boxShadow: "0 0 6px #f72585" }} />
                 <span style={{ fontSize: 10, color: "#f72585", letterSpacing: 1, fontFamily: "monospace" }}>DETECTED QUESTION</span>
               </div>
+              <button onClick={() => captureAndAnalyze(true)} style={{ background: "none", border: "1px solid rgba(124,58,237,0.3)", borderRadius: 8, color: "#7c3aed", fontSize: 10, cursor: "pointer", fontFamily: "monospace", padding: "2px 8px" }}>↺ RETRY</button>
               {result.language && result.language !== "none" && LANG_COLORS[result.language] && (
                 <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "monospace", padding: "2px 10px", borderRadius: 20, background: LANG_COLORS[result.language].bg, color: LANG_COLORS[result.language].color, border: `1px solid ${LANG_COLORS[result.language].color}40` }}>
                   {LANG_COLORS[result.language].label}
@@ -740,27 +743,7 @@ export default function Home() {
       </div>
 
       {/* Floating SCAN button (portrait) */}
-      {cameraActive && (
-        <button
-          onClick={handleManualScan}
-          disabled={isAnalyzing || status === "cooldown"}
-          style={{
-            position: "fixed", bottom: 24, right: 20,
-            width: 60, height: 60, borderRadius: "50%",
-            background: status === "cooldown" ? "#1a1a26" : "linear-gradient(135deg, #7c3aed, #f72585)",
-            border: `2px solid ${status === "cooldown" ? "#6b6b85" : "rgba(255,255,255,0.2)"}`,
-            color: "white", fontSize: isAnalyzing ? 22 : 10, fontWeight: 700,
-            cursor: (isAnalyzing || status === "cooldown") ? "not-allowed" : "pointer",
-            fontFamily: "monospace", letterSpacing: 1,
-            boxShadow: status === "cooldown" ? "none" : "0 0 24px rgba(124,58,237,0.6)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 100,
-            animation: isAnalyzing ? "spin 1s linear infinite" : "none",
-          }}
-        >
-          {isAnalyzing ? "⟳" : status === "cooldown" ? cooldownLeft : "SCAN"}
-        </button>
-      )}
+
 
       {/* Footer */}
       <footer style={{ borderTop: "1px solid rgba(124,58,237,0.15)", padding: "12px 16px", textAlign: "center", background: "#12121a" }}>
